@@ -1,0 +1,7 @@
+Django==5.2.9
+psycopg2-binary==2.9.11
+djangorestframework==3.16.1
+djangorestframework_simplejwt==5.5.1
+drf-spectacular==0.29.0
+facebook-business
+python-decouple==3.8
