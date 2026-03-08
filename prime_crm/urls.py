@@ -26,6 +26,7 @@ urlpatterns = [
 
     # CRM
     path('leads/', include('leads.urls')),
+    path('projects/', include('projects.urls', namespace='projects')),
 
     # API Schema & Docs
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

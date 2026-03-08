@@ -1,16 +1,17 @@
-import uuid
 from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from core.utils import UUIDTimestampedModel
+
 
 def default_expires_at():
     return timezone.now() + timedelta(hours=72)
 
 
-class Invitation(models.Model):
+class Invitation(UUIDTimestampedModel):
     class Role(models.TextChoices):
         MANAGER = 'manager', 'Manager'
         AGENT = 'agent', 'Agent'
@@ -24,10 +25,9 @@ class Invitation(models.Model):
         null=True,
         related_name='sent_invitations',
     )
-    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    token = models.CharField(unique=True, editable=False)
     is_used = models.BooleanField(default=False)
     expires_at = models.DateTimeField(default=default_expires_at)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = 'Invitation'

@@ -59,3 +59,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'full_name', 'role', 'is_active', 'date_joined',
         ]
         read_only_fields = fields
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for a user to update their own profile (non-sensitive fields only)."""
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'phone_number']

@@ -1,6 +1,7 @@
 from .auth import LoginView, LogoutView, ChangePasswordView, MeView
 from .invite import InviteUserView, AcceptInviteView
 from .password_reset import ForgotPasswordView, VerifyOTPView, ResetPasswordView
+from .user import UserListView, UpdateMeView
 
 __all__ = [
     'LoginView',
@@ -12,4 +13,6 @@ __all__ = [
     'ForgotPasswordView',
     'VerifyOTPView',
     'ResetPasswordView',
+    'UserListView',
+    'UpdateMeView',
 ]

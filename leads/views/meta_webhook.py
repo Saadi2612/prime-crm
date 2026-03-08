@@ -115,6 +115,7 @@ class MetaWebhookView(APIView):
                         custom_data = {}
                         full_name = ""
                         phone = ""
+                        email = ""
                         job_title = ""
                         
                         for field_item in field_data_list:
@@ -126,6 +127,8 @@ class MetaWebhookView(APIView):
                                 full_name = val
                             elif name == "phone":
                                 phone = val
+                            elif name == "email":
+                                email = val
                             elif name == "job_title":
                                 job_title = val
                             else:
@@ -141,6 +144,7 @@ class MetaWebhookView(APIView):
                                     "created_time": created_time,
                                     "full_name": full_name,
                                     "phone": phone,
+                                    "email": email,
                                     "job_title": job_title,
                                     "custom_data": custom_data
                                 }

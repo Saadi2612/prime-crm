@@ -18,6 +18,7 @@ except Exception:
 done
 
 echo "PostgreSQL is up - running migrations..."
+python manage.py makemigrations --noinput
 python manage.py migrate --noinput
 
 echo "Starting server..."

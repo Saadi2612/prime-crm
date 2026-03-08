@@ -3,5 +3,8 @@ psycopg2-binary==2.9.11
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.29.0
+django-cors-headers==4.7.0
 facebook-business
 python-decouple==3.8
+drf-nested-routers==0.95.0
+resend

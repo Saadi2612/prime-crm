@@ -1,10 +1,10 @@
+import uuid
+
+import django.contrib.auth.models
 import django.db.models.deletion
 import django.utils.timezone
-import uuid
 from django.conf import settings
 from django.db import migrations, models
-import authentication.models.invite
-import authentication.models.otp
 
 
 class Migration(migrations.Migration):
@@ -19,10 +19,14 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='User',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('password', models.CharField(max_length=128, verbose_name='password')),
                 ('last_login', models.DateTimeField(blank=True, null=True, verbose_name='last login')),
-                ('is_superuser', models.BooleanField(default=False, verbose_name='superuser status')),
+                ('is_superuser', models.BooleanField(
+                    default=False,
+                    help_text='Designates that this user has all permissions without explicitly assigning them.',
+                    verbose_name='superuser status',
+                )),
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('email', models.EmailField(max_length=254, unique=True)),
                 ('phone_number', models.CharField(blank=True, max_length=20, null=True)),
                 ('first_name', models.CharField(blank=True, max_length=150)),
@@ -38,13 +42,17 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('groups', models.ManyToManyField(
                     blank=True,
-                    related_name='authentication_user_set',
+                    help_text='The groups this user belongs to.',
+                    related_name='user_set',
+                    related_query_name='user',
                     to='auth.group',
                     verbose_name='groups',
                 )),
                 ('user_permissions', models.ManyToManyField(
                     blank=True,
-                    related_name='authentication_user_set',
+                    help_text='Specific permissions for this user.',
+                    related_name='user_set',
+                    related_query_name='user',
                     to='auth.permission',
                     verbose_name='user permissions',
                 )),
@@ -54,11 +62,16 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Users',
                 'ordering': ['-date_joined'],
             },
+            managers=[
+                ('objects', django.contrib.auth.models.BaseUserManager()),
+            ],
         ),
         migrations.CreateModel(
             name='Invitation',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
                 ('email', models.EmailField(max_length=254)),
                 ('phone_number', models.CharField(blank=True, max_length=20, null=True)),
                 ('role', models.CharField(
@@ -67,8 +80,7 @@ class Migration(migrations.Migration):
                 )),
                 ('token', models.UUIDField(default=uuid.uuid4, editable=False, unique=True)),
                 ('is_used', models.BooleanField(default=False)),
-                ('expires_at', models.DateTimeField(default=authentication.models.invite.default_expires_at)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('expires_at', models.DateTimeField()),
                 ('invited_by', models.ForeignKey(
                     null=True,
                     on_delete=django.db.models.deletion.SET_NULL,
@@ -85,11 +97,12 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='OTPCode',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
                 ('code', models.CharField(max_length=6)),
                 ('is_used', models.BooleanField(default=False)),
-                ('expires_at', models.DateTimeField(default=authentication.models.otp.default_otp_expires_at)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('expires_at', models.DateTimeField()),
                 ('user', models.ForeignKey(
                     on_delete=django.db.models.deletion.CASCADE,
                     related_name='otp_codes',

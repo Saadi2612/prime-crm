@@ -1,5 +1,7 @@
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, inline_serializer
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -12,12 +14,50 @@ from authentication.serializers.auth import (
 
 
 class LoginView(APIView):
-    """
-    POST /auth/login/
-    Authenticate user and return JWT access + refresh tokens.
-    """
+    """Authenticate with email + password and receive JWT tokens."""
+    permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary='Login',
+        description='Authenticate with email and password. Returns JWT access + refresh tokens and the user profile.',
+        request=LoginSerializer,
+        responses={
+            200: OpenApiResponse(
+                description='Login successful',
+                response=inline_serializer(
+                    name='LoginResponse',
+                    fields={
+                        'access': drf_serializers.CharField(),
+                        'refresh': drf_serializers.CharField(),
+                        'user': UserProfileSerializer(),
+                    },
+                ),
+                examples=[
+                    OpenApiExample(
+                        'Success',
+                        value={
+                            'access': '<jwt-access-token>',
+                            'refresh': '<jwt-refresh-token>',
+                            'user': {
+                                'id': 1,
+                                'email': 'admin@example.com',
+                                'role': 'admin',
+                                'first_name': 'John',
+                                'last_name': 'Doe',
+                            },
+                        },
+                    )
+                ],
+            ),
+            400: OpenApiResponse(description='Invalid credentials'),
+        },
+        auth=[],
+        tags=['Authentication'],
+    )
     def post(self, request):
+        print("email:   ", request.data['email'])
+        print("password:   ", request.data['password'])
+        
         serializer = LoginSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
@@ -32,12 +72,22 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    """
-    POST /auth/logout/
-    Blacklist the provided refresh token to log out the user.
-    """
+    """Blacklist the refresh token to invalidate the current session."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary='Logout',
+        description='Blacklist the provided refresh token, effectively logging out the user.',
+        request=inline_serializer(
+            name='LogoutRequest',
+            fields={'refresh': drf_serializers.CharField(help_text='The JWT refresh token to blacklist.')},
+        ),
+        responses={
+            200: OpenApiResponse(description='Logged out successfully'),
+            400: OpenApiResponse(description='Missing or invalid refresh token'),
+        },
+        tags=['Authentication'],
+    )
     def post(self, request):
         refresh_token = request.data.get('refresh')
         if not refresh_token:
@@ -57,12 +107,19 @@ class LogoutView(APIView):
 
 
 class ChangePasswordView(APIView):
-    """
-    POST /auth/change-password/
-    Change the authenticated user's password.
-    """
+    """Change the authenticated user's password."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary='Change Password',
+        description='Change your password. Requires the current (old) password for verification.',
+        request=ChangePasswordSerializer,
+        responses={
+            200: OpenApiResponse(description='Password changed successfully'),
+            400: OpenApiResponse(description='Validation error — wrong old password or mismatched new passwords'),
+        },
+        tags=['Authentication'],
+    )
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
@@ -74,12 +131,18 @@ class ChangePasswordView(APIView):
 
 
 class MeView(APIView):
-    """
-    GET /auth/me/
-    Return the profile of the currently authenticated user.
-    """
+    """Retrieve the profile of the currently authenticated user."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary='My Profile',
+        description='Returns the profile of the currently authenticated user.',
+        responses={
+            200: UserProfileSerializer,
+            401: OpenApiResponse(description='Authentication credentials were not provided'),
+        },
+        tags=['Authentication'],
+    )
     def get(self, request):
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)

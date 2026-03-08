@@ -1,3 +1,5 @@
+from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework.permissions import AllowAny
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,11 +14,24 @@ from authentication.utils import generate_otp, send_otp_email
 
 
 class ForgotPasswordView(APIView):
-    """
-    POST /auth/forgot-password/
-    Generate and email a 6-digit OTP to the user for password reset.
-    """
+    """Request a one-time password (OTP) for password reset."""
+    permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary='Forgot Password',
+        description=(
+            'Triggers a 6-digit OTP to be sent to the provided email address. '
+            'The OTP expires in **2 minutes**. '
+            'Any previously unused OTPs for this account are immediately invalidated.'
+        ),
+        request=ForgotPasswordSerializer,
+        responses={
+            200: OpenApiResponse(description='OTP sent (same response whether or not the email exists, to prevent enumeration)'),
+            400: OpenApiResponse(description='Validation error'),
+        },
+        auth=[],
+        tags=['Password Reset'],
+    )
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -24,16 +39,12 @@ class ForgotPasswordView(APIView):
         user = serializer.user
         otp_code = generate_otp()
 
-        # Invalidate all previous unused OTPs for this user
         OTPCode.objects.filter(user=user, is_used=False).update(is_used=True)
-
-        # Create new OTP
         OTPCode.objects.create(user=user, code=otp_code)
 
         try:
             send_otp_email(user, otp_code)
         except Exception:
-            # Don't expose email sending failures to the client
             pass
 
         return Response(
@@ -43,12 +54,24 @@ class ForgotPasswordView(APIView):
 
 
 class VerifyOTPView(APIView):
-    """
-    POST /auth/verify-otp/
-    Verify that the submitted OTP is valid and not expired.
-    Returns a success flag that the frontend can use to enable the reset form.
-    """
+    """Verify that a password-reset OTP is valid before allowing the reset."""
+    permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary='Verify OTP',
+        description=(
+            'Check that the submitted OTP is valid and has not expired. '
+            'Call this before `reset-password` to confirm the code is correct. '
+            'The OTP expires in **2 minutes**.'
+        ),
+        request=VerifyOTPSerializer,
+        responses={
+            200: OpenApiResponse(description='OTP is valid'),
+            400: OpenApiResponse(description='Invalid or expired OTP'),
+        },
+        auth=[],
+        tags=['Password Reset'],
+    )
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -60,11 +83,24 @@ class VerifyOTPView(APIView):
 
 
 class ResetPasswordView(APIView):
-    """
-    POST /auth/reset-password/
-    Reset user password after verifying the OTP.
-    """
+    """Reset the user's password using a valid OTP."""
+    permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary='Reset Password',
+        description=(
+            'Reset the account password. Requires the same email + OTP used in `forgot-password` / `verify-otp`. '
+            "The new password must meet Django's password validation rules. "
+            'After a successful reset, the OTP is invalidated and all other pending OTPs for this user are revoked.'
+        ),
+        request=ResetPasswordSerializer,
+        responses={
+            200: OpenApiResponse(description='Password reset successfully'),
+            400: OpenApiResponse(description='Invalid/expired OTP or password validation failure'),
+        },
+        auth=[],
+        tags=['Password Reset'],
+    )
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

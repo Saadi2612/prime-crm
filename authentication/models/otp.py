@@ -4,12 +4,14 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from core.utils import UUIDTimestampedModel
+
 
 def default_otp_expires_at():
     return timezone.now() + timedelta(minutes=2)
 
 
-class OTPCode(models.Model):
+class OTPCode(UUIDTimestampedModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -18,7 +20,6 @@ class OTPCode(models.Model):
     code = models.CharField(max_length=6)
     is_used = models.BooleanField(default=False)
     expires_at = models.DateTimeField(default=default_otp_expires_at)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = 'OTP Code'
