@@ -1,9 +1,13 @@
 from rest_framework import viewsets, filters
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
+from django.db.models import Count
+from django.utils import timezone
+from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from leads.models import Lead
+from leads.models import Lead, LeadStage
 from leads.serializers import LeadSerializer, LeadListSerializer, LeadDetailSerializer
 
 
@@ -64,6 +68,88 @@ class LeadViewSet(viewsets.ModelViewSet):
         if is_paginated != 'true':
             return Response(data)
         return super().get_paginated_response(data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        total_leads = queryset.count()
+        
+        active_leads = queryset.exclude(stage__name__in=['Lost', 'Qualified']).count()
+        
+        qualified_leads = queryset.filter(stage__name='Qualified').count()
+        
+        today = timezone.localtime().date()
+        follow_ups_today = queryset.filter(next_follow_up=today).count()
+        
+        return Response({
+            'total_leads': total_leads,
+            'active_leads': active_leads,
+            'qualified_leads': qualified_leads,
+            'follow_ups_today': follow_ups_today
+        })
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='days',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                default=7,
+                description='Number of days for chart data (7 or 30).',
+            ),
+        ],
+    )
+    @action(detail=False, methods=['get'])
+    def chart(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        try:
+            days = int(request.query_params.get('days', 7))
+            if days not in [7, 30]:
+                days = 7
+        except ValueError:
+            days = 7
+            
+        today = timezone.localtime().date()
+        threshold_date = today - timedelta(days=days - 1)
+
+        print("threshold -> ", threshold_date, flush=True)
+        
+        # Filter leads created from threshold date to today
+        # Note: created_time might be a datetime, so we filter by date
+        filtered_leads = queryset.filter(
+            created_time__date__gte=threshold_date,
+            created_time__date__lte=today
+        )
+        
+        # Group by date and count
+        leads_per_day = filtered_leads.values('created_time__date').annotate(count=Count('id')).order_by('created_time__date')
+        
+        # Format the result to ensure all dates exist even if 0 count
+        result_dict = {
+            (threshold_date + timedelta(days=i)).strftime('%Y-%m-%d'): 0
+            for i in range(days)
+        }
+        
+        for item in leads_per_day:
+            date_str = item['created_time__date'].strftime('%Y-%m-%d')
+            result_dict[date_str] = item['count']
+            
+        formatted_result = [{'date': date, 'count': count} for date, count in result_dict.items()]
+        
+        return Response(formatted_result)
+
+    @action(detail=False, methods=['get'])
+    def recent(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        today = timezone.localtime().date()
+        recent_leads = queryset.filter(created_time__date=today).order_by('-created_time')[:10]
+        
+        serializer = LeadListSerializer(recent_leads, many=True)
+        return Response(serializer.data)
 
     @extend_schema(
         parameters=[

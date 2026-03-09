@@ -88,10 +88,11 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             'project',
             'form_id',
             'assigned_to',
+            'created_time',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'pipeline_stages', 'notes', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'pipeline_stages', 'notes', 'created_at', 'updated_at', 'created_time']
 
     def get_pipeline_stages(self, obj):
         stages = LeadStage.objects.order_by('order', 'name')
@@ -150,10 +151,11 @@ class LeadSerializer(serializers.ModelSerializer):
             'form_id',
             'assigned_to',
             'latest_note',
+            'created_time',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_time']
 
     def get_latest_note(self, obj):
         note = obj.notes.order_by('-created_at').first()

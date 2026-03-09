@@ -36,5 +36,10 @@ class Lead(UUIDTimestampedModel):
     )
     custom_data = models.JSONField(default=dict, blank=True)
 
+    def save(self, *args, **kwargs):
+        if not self.created_time:
+            self.created_time = self.created_at
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.full_name} ({self.leadgen_id})"

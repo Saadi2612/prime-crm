@@ -7,8 +7,7 @@ import jwt
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-
-from core.services.resend import send_email
+from django.core.mail import send_mail
 
 
 # ---------------------------------------------------------------------------
@@ -49,12 +48,13 @@ def generate_invite_jwt(invitation, invited_by=None) -> str:
 
     The JWT is signed with Django's SECRET_KEY using HS256.
     """
+    inviter = invited_by or invitation.invited_by
     payload = {
         'invitation_id': str(invitation.id),
         'email': invitation.email,
         'invited_by': {
-            'first_name': invited_by.first_name or '',
-            'last_name': invited_by.last_name or '',
+            'first_name': inviter.first_name if inviter and inviter.first_name else '',
+            'last_name': inviter.last_name if inviter and inviter.last_name else '',
         },
         'exp': timezone.now() + timedelta(hours=_INVITE_JWT_EXPIRY_HOURS),
     }
@@ -92,7 +92,10 @@ def send_invite_email(invitation, request=None):
     jwt_token = generate_invite_jwt(invitation)
     invite_url = f'{frontend_url}/accept-invite/?token={jwt_token}'
 
-    inviter_name = invitation.invited_by.full_name or invitation.invited_by.email
+    if invitation.invited_by:
+        inviter_name = invitation.invited_by.full_name or invitation.invited_by.email
+    else:
+        inviter_name = "Admin"
     subject = 'You have been invited to join Prime CRM'
     
     html_content = f"""
@@ -110,10 +113,13 @@ def send_invite_email(invitation, request=None):
     </div>
     """
 
-    send_email(
-        to_emails=[invitation.email],
+    send_mail(
         subject=subject,
-        html_content=html_content
+        message="Please view this email in an HTML-compatible client.",
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[invitation.email],
+        html_message=html_content,
+        fail_silently=False,
     )
 
 
@@ -135,10 +141,13 @@ def send_welcome_email(user):
     </div>
     """
 
-    send_email(
-        to_emails=[user.email],
+    send_mail(
         subject=subject,
-        html_content=html_content
+        message="Please view this email in an HTML-compatible client.",
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        html_message=html_content,
+        fail_silently=False,
     )
 
 
