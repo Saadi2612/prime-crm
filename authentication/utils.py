@@ -7,7 +7,8 @@ import jwt
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from django.core.mail import send_mail
+
+from core.services.sendgrid import send_email
 
 
 # ---------------------------------------------------------------------------
@@ -113,13 +114,10 @@ def send_invite_email(invitation, request=None):
     </div>
     """
 
-    send_mail(
+    send_email(
+        to_emails=[invitation.email],
         subject=subject,
-        message="Please view this email in an HTML-compatible client.",
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[invitation.email],
-        html_message=html_content,
-        fail_silently=False,
+        html_content=html_content
     )
 
 
@@ -141,32 +139,27 @@ def send_welcome_email(user):
     </div>
     """
 
-    send_mail(
+    send_email(
+        to_emails=[user.email],
         subject=subject,
-        message="Please view this email in an HTML-compatible client.",
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=html_content,
-        fail_silently=False,
+        html_content=html_content
     )
 
 
 def send_otp_email(user, otp_code: str):
     """Send a password-reset OTP to the user's email."""
     subject = 'Prime CRM — Password Reset OTP'
-    message = (
-        f'Hello {user.full_name or user.email},\n\n'
-        f'Your password reset OTP is:\n\n'
-        f'    {otp_code}\n\n'
-        f'This code is valid for 2 minutes. Do not share it with anyone.\n\n'
-        f'If you did not request a password reset, please ignore this email.\n\n'
-        f'Best regards,\nPrime CRM Team'
+    html_content = (
+        f'<p>Hello {user.full_name or user.email},</p>'
+        f'<p>Your password reset OTP is:</p>'
+        f'<h2>{otp_code}</h2>'
+        f'<p>This code is valid for 2 minutes. Do not share it with anyone.</p>'
+        f'<p>If you did not request a password reset, please ignore this email.</p>'
+        f'<p>Best regards,<br>Prime CRM Team</p>'
     )
 
-    send_mail(
+    send_email(
+        to_emails=[user.email],
         subject=subject,
-        message=message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
+        html_content=html_content
     )

@@ -1,15 +1,15 @@
 version: "3.9"
 
 services:
-  db:
-    image: postgres:16
-    restart: always
-    env_file:
-      - .env
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+  # db:
+  #   image: postgres:16
+  #   restart: always
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
 
   web:
     build: .
@@ -20,8 +20,8 @@ services:
       - .:/app
     ports:
       - "8000:8000"
-    depends_on:
-      - db
+    # depends_on:
+    #   - db
 
 volumes:
   postgres_data:
