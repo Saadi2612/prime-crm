@@ -20,7 +20,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
-            cd /home/ec2-user/backend
+            cd /home/ec2-user/prime_crm
             git fetch --all
             git reset --hard origin/dev
             docker compose down
