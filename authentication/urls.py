@@ -7,7 +7,7 @@ from authentication.views.invite import (
     PendingInvitationListView, PendingInvitationDetailView, ResendInvitationView
 )
 from authentication.views.password_reset import ForgotPasswordView, VerifyOTPView, ResetPasswordView
-from authentication.views.user import UserListView, UpdateMeView
+from authentication.views.user import UserListView, UpdateMeView, UserDetailView
 
 app_name = 'authentication'
 
@@ -22,6 +22,7 @@ urlpatterns = [
 
     # ── Users ────────────────────────────────────────────────────────
     path('users/', UserListView.as_view(), name='user-list'),
+    path('users/<uuid:pk>/', UserDetailView.as_view(), name='user-detail'),
 
     # ── Invitations ──────────────────────────────────────────────────
     path('invite/', InviteUserView.as_view(), name='invite'),

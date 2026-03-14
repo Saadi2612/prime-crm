@@ -1,14 +1,15 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied
-from django.db.models import Count
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from leads.models import Lead, LeadStage
-from leads.serializers import LeadSerializer, LeadListSerializer, LeadDetailSerializer
+from leads.models import Lead, LeadStage, LeadTransfer
+from leads.serializers import LeadSerializer, LeadListSerializer, LeadDetailSerializer, LeadTransferSerializer
+from authentication.models import User
 
 
 class LeadViewSet(viewsets.ModelViewSet):
@@ -38,7 +39,7 @@ class LeadViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if self.action == 'list' and user.is_authenticated:
+        if self.action in ['list', 'stats', 'chart', 'recent'] and user.is_authenticated:
             if getattr(user, 'role', '') == 'agent':
                 return queryset.filter(assigned_to=user)
         return queryset
@@ -82,11 +83,15 @@ class LeadViewSet(viewsets.ModelViewSet):
         today = timezone.localtime().date()
         follow_ups_today = queryset.filter(next_follow_up=today).count()
         
+        stage_counts_queryset = queryset.values('stage__name').annotate(count=Count('id'))
+        stage_counts = {item['stage__name'].lower(): item['count'] for item in stage_counts_queryset if item['stage__name']}
+        
         return Response({
             'total_leads': total_leads,
             'active_leads': active_leads,
             'qualified_leads': qualified_leads,
-            'follow_ups_today': follow_ups_today
+            'follow_ups_today': follow_ups_today,
+            'stage_counts': stage_counts
         })
 
     @extend_schema(
@@ -150,6 +155,46 @@ class LeadViewSet(viewsets.ModelViewSet):
         
         serializer = LeadListSerializer(recent_leads, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='transfer')
+    def transfer(self, request, pk=None):
+        """
+        POST /leads/{id}/transfer/
+        Body: { "to_user": "<uuid>", "note": "optional" }
+
+        Reassigns the lead to a different agent and records the transfer.
+        Only admin and manager roles are allowed.
+        """
+        user = request.user
+        if getattr(user, 'role', '') not in ('admin', 'manager'):
+            raise PermissionDenied("Only admins and managers can transfer leads.")
+
+        lead = self.get_object()
+
+        to_user_id = request.data.get('to_user')
+        if not to_user_id:
+            raise ValidationError({'to_user': 'This field is required.'})
+
+        try:
+            to_user = User.objects.get(pk=to_user_id)
+        except User.DoesNotExist:
+            raise ValidationError({'to_user': 'User not found.'})
+
+        note = request.data.get('note', '')
+
+        LeadTransfer.objects.create(
+            lead=lead,
+            from_user=lead.assigned_to,
+            to_user=to_user,
+            transferred_by=user,
+            note=note,
+        )
+
+        lead.assigned_to = to_user
+        lead.save(update_fields=['assigned_to'])
+
+        serializer = LeadDetailSerializer(lead, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
         parameters=[
