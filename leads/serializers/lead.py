@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from leads.models import Lead, LeadStage
 from leads.serializers.lead_note import LeadNoteSerializer
+from leads.serializers.lead_transfer import LeadTransferSerializer
 from projects.models import Project
 from authentication.models import User
 
@@ -51,17 +52,17 @@ class LeadDetailSerializer(serializers.ModelSerializer):
     """
     Full lead detail serializer.
 
-    - `stage`           – nested current stage object
-    - `pipeline_stages` – all stages ordered by `order`, so the frontend
-                          can render the full pipeline bar and highlight
-                          the current one
-    - `project`         – nested associated project (replaces 'Preferences')
-    - `notes`           – list of LeadNote objects (newest first, immutable)
+    - `stage`            – nested current stage object
+    - `pipeline_stages`  – all stages ordered by `order`
+    - `project`          – nested associated project
+    - `notes`            – list of LeadNote objects (newest first, immutable)
+    - `transfer_history` – chronological list of LeadTransfer records
     """
     stage = StageSerializer(read_only=True)
     pipeline_stages = serializers.SerializerMethodField()
     project = ProjectSummarySerializer(read_only=True)
     notes = serializers.SerializerMethodField()
+    transfer_history = serializers.SerializerMethodField()
     min_budget = serializers.DecimalField(
         max_digits=15, decimal_places=2,
         coerce_to_string=False, allow_null=True, required=False,
@@ -85,6 +86,7 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             'pipeline_stages',
             'next_follow_up',
             'notes',
+            'transfer_history',
             'project',
             'form_id',
             'assigned_to',
@@ -92,7 +94,7 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'pipeline_stages', 'notes', 'created_at', 'updated_at', 'created_time']
+        read_only_fields = ['id', 'pipeline_stages', 'notes', 'transfer_history', 'created_at', 'updated_at', 'created_time']
 
     def get_pipeline_stages(self, obj):
         stages = LeadStage.objects.order_by('order', 'name')
@@ -101,6 +103,12 @@ class LeadDetailSerializer(serializers.ModelSerializer):
     def get_notes(self, obj):
         notes = obj.notes.order_by('-created_at')
         return LeadNoteSerializer(notes, many=True).data
+
+    def get_transfer_history(self, obj):
+        transfers = obj.transfers.select_related(
+            'from_user', 'to_user', 'transferred_by'
+        ).order_by('created_at')
+        return LeadTransferSerializer(transfers, many=True).data
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)

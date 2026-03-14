@@ -51,14 +51,23 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
+    lead_stats = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'phone_number', 'first_name', 'last_name',
-            'full_name', 'role', 'is_active', 'date_joined',
+            'full_name', 'role', 'is_active', 'date_joined', 'lead_stats',
         ]
         read_only_fields = fields
+
+    def get_lead_stats(self, obj):
+        return {
+            'total': getattr(obj, 'total_leads_count', 0),
+            'active': getattr(obj, 'active_leads_count', 0),
+            'won': getattr(obj, 'won_leads_count', 0),
+            'lost': getattr(obj, 'lost_leads_count', 0),
+        }
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
