@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from leads.models import Lead, LeadStage, LeadTransfer
+from leads.models import Lead, LeadNote, LeadStage, LeadTransfer
 from leads.serializers import LeadSerializer, LeadListSerializer, LeadDetailSerializer, LeadTransferSerializer
 from authentication.models import User
 
@@ -25,7 +25,7 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     Query Params (list only):
         is_detailed=true  → full object (default)
-        is_detailed=false → id, full_name, phone, job_title, next_follow_up, project only
+        is_detailed=false → id, full_name, phone, job_title, project only
         is_paginated=true → paginated response (default)
         is_paginated=false → all objects in one response
     """
@@ -33,15 +33,19 @@ class LeadViewSet(viewsets.ModelViewSet):
     serializer_class = LeadSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['full_name', 'phone', 'job_title', 'form_id']
-    ordering_fields = ['full_name', 'next_follow_up', 'min_budget', 'max_budget', 'created_at']
+    ordering_fields = ['full_name', 'min_budget', 'max_budget', 'created_at']
     ordering = ['-created_at']
 
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
         if self.action in ['list', 'stats', 'chart', 'recent'] and user.is_authenticated:
-            if getattr(user, 'role', '') == 'agent':
+            if user.role == 'agent':
                 return queryset.filter(assigned_to=user)
+            # Admin/manager can filter by assigned_to query param
+            assigned_to_id = self.request.query_params.get('assigned_to')
+            if assigned_to_id:
+                queryset = queryset.filter(assigned_to__id=assigned_to_id)
         return queryset
 
     def get_object(self):
@@ -76,14 +80,17 @@ class LeadViewSet(viewsets.ModelViewSet):
         
         total_leads = queryset.count()
         
-        active_leads = queryset.exclude(stage__name__in=['Lost', 'Qualified']).count()
+        active_leads = queryset.exclude(stage__name__in=['lost', 'qualified']).count()
         
-        qualified_leads = queryset.filter(stage__name='Qualified').count()
+        qualified_leads = queryset.filter(stage__name='qualified').count()
         
         today = timezone.localtime().date()
-        follow_ups_today = queryset.filter(next_follow_up=today).count()
+        follow_ups_today = LeadNote.objects.filter(
+            lead__in=queryset,
+            next_follow_up=today,
+        ).values('lead').distinct().count()
         
-        stage_counts_queryset = queryset.values('stage__name').annotate(count=Count('id'))
+        stage_counts_queryset = queryset.values('stage__name').annotate(count=Count('id')).order_by('stage__name')
         stage_counts = {item['stage__name'].lower(): item['count'] for item in stage_counts_queryset if item['stage__name']}
         
         return Response({
@@ -204,7 +211,7 @@ class LeadViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
                 required=False,
                 default=True,
-                description='Return full lead details (true) or slim fields only — id, full_name, phone, job_title, next_follow_up, project (false).',
+                description='Return full lead details (true) or slim fields only — id, full_name, phone, job_title, project (false).',
             ),
             OpenApiParameter(
                 name='is_paginated',

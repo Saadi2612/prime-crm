@@ -12,5 +12,5 @@ class LeadNoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LeadNote
-        fields = ['id', 'body', 'created_at']
+        fields = ['id', 'body', 'next_follow_up', 'created_at']
         read_only_fields = ['id', 'created_at']

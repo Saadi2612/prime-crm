@@ -15,6 +15,7 @@ class LeadNote(UUIDTimestampedModel):
         related_name='notes',
     )
     body = models.TextField()
+    next_follow_up = models.DateField(blank=True, null=True)
 
     class Meta:
         ordering = ['-created_at']
