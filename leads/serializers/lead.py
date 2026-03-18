@@ -39,7 +39,7 @@ class LeadListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lead
-        fields = ['id', 'full_name', 'email', 'phone', 'job_title', 'stage', 'next_follow_up', 'project', 'latest_note']
+        fields = ['id', 'full_name', 'email', 'phone', 'job_title', 'stage', 'project', 'latest_note']
 
     def get_latest_note(self, obj):
         note = obj.notes.order_by('-created_at').first()
@@ -84,7 +84,6 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             'max_budget',
             'stage',
             'pipeline_stages',
-            'next_follow_up',
             'notes',
             'transfer_history',
             'project',
@@ -154,7 +153,6 @@ class LeadSerializer(serializers.ModelSerializer):
             'min_budget',
             'max_budget',
             'stage',
-            'next_follow_up',
             'project',
             'form_id',
             'assigned_to',

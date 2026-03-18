@@ -11,7 +11,6 @@ class Lead(UUIDTimestampedModel):
     job_title = models.CharField(max_length=255, blank=True, null=True)
     min_budget = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)
     max_budget = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)
-    next_follow_up = models.DateField(blank=True, null=True)
     project = models.ForeignKey(
         'projects.Project',
         on_delete=models.SET_NULL,
