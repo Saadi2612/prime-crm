@@ -14,3 +14,22 @@ class LeadNoteSerializer(serializers.ModelSerializer):
         model = LeadNote
         fields = ['id', 'body', 'next_follow_up', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+class FollowUpSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the follow-up alerts, including basic Lead information.
+    """
+    lead = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LeadNote
+        fields = ['id', 'body', 'next_follow_up', 'created_at', 'lead']
+
+    def get_lead(self, obj):
+        lead = obj.lead
+        return {
+            'id': lead.id,
+            'full_name': lead.full_name,
+            'phone': lead.phone,
+            'email': lead.email,
+        }

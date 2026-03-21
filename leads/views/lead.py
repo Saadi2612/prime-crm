@@ -163,6 +163,22 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = LeadListSerializer(recent_leads, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'], url_path='today-follow-ups')
+    def today_follow_ups(self, request):
+        """Get today's follow-ups for the user."""
+        from leads.serializers.lead_note import FollowUpSerializer
+        
+        queryset = self.filter_queryset(self.get_queryset())
+        today = timezone.localtime().date()
+        
+        notes = LeadNote.objects.filter(
+            lead__in=queryset,
+            next_follow_up__date=today
+        ).select_related('lead').order_by('next_follow_up')
+        
+        serializer = FollowUpSerializer(notes, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'], url_path='transfer')
     def transfer(self, request, pk=None):
         """
