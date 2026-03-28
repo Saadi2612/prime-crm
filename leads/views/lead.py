@@ -39,13 +39,16 @@ class LeadViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if self.action in ['list', 'stats', 'chart', 'recent'] and user.is_authenticated:
+        if self.action in ['list', 'stats', 'chart', 'recent', 'unassigned_leads'] and user.is_authenticated:
             if user.role == 'agent':
                 return queryset.filter(assigned_to=user)
             # Admin/manager can filter by assigned_to query param
             assigned_to_id = self.request.query_params.get('assigned_to')
             if assigned_to_id:
                 queryset = queryset.filter(assigned_to__id=assigned_to_id)
+            # Admin/manager can filter for unassigned leads
+            if self.request.query_params.get('unassigned') == 'true':
+                queryset = queryset.filter(assigned_to__isnull=True)
         return queryset
 
     def get_object(self):
@@ -163,6 +166,24 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer = LeadListSerializer(recent_leads, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'], url_path='unassigned')
+    def unassigned_leads(self, request):
+        """GET /leads/unassigned/
+        Returns all leads with no assigned user.
+        Only accessible by admin and manager roles.
+        """
+        user = request.user
+        if getattr(user, 'role', '') not in ('admin', 'manager'):
+            raise PermissionDenied("Only admins and managers can view unassigned leads.")
+
+        queryset = self.filter_queryset(
+            Lead.objects.select_related('project', 'stage', 'assigned_to')
+            .filter(assigned_to__isnull=True)
+            .order_by('-created_at')
+        )
+        serializer = LeadSerializer(queryset, many=True, context={'request': request})
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], url_path='today-follow-ups')
     def today_follow_ups(self, request):
         """Get today's follow-ups for the user."""
@@ -242,8 +263,11 @@ class LeadViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+    def perform_create(self, serializer):
+        stage = LeadStage.objects.filter(name__iexact='new').first()
+        if not stage:
+            stage, _ = LeadStage.objects.get_or_create(name='new', defaults={'order': 0})
+        serializer.save(assigned_to=self.request.user, stage=stage)
 
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
