@@ -85,6 +85,7 @@ DATABASES = {
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'prime_crm_pass'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'CONN_MAX_AGE': 60,  # Reuse DB connections for 60s — avoids TCP handshake per request
     }
 }
 

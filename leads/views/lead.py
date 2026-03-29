@@ -2,7 +2,7 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Prefetch
 from django.utils import timezone
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -29,7 +29,15 @@ class LeadViewSet(viewsets.ModelViewSet):
         is_paginated=true → paginated response (default)
         is_paginated=false → all objects in one response
     """
-    queryset = Lead.objects.select_related('project', 'stage', 'assigned_to').all()
+    queryset = Lead.objects.select_related(
+        'project', 'stage', 'assigned_to'
+    ).prefetch_related(
+        Prefetch(
+            'notes',
+            queryset=LeadNote.objects.order_by('-created_at'),
+            to_attr='prefetched_notes',
+        )
+    ).all()
     serializer_class = LeadSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['full_name', 'phone', 'job_title', 'form_id']
@@ -80,28 +88,34 @@ class LeadViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         queryset = self.filter_queryset(self.get_queryset())
-        
-        total_leads = queryset.count()
-        
-        active_leads = queryset.exclude(stage__name__in=['lost', 'qualified']).count()
-        
-        qualified_leads = queryset.filter(stage__name='qualified').count()
-        
         today = timezone.localtime().date()
-        follow_ups_today = LeadNote.objects.filter(
-            lead__in=queryset,
-            next_follow_up=today,
-        ).values('lead').distinct().count()
-        
-        stage_counts_queryset = queryset.values('stage__name').annotate(count=Count('id')).order_by('stage__name')
-        stage_counts = {item['stage__name'].lower(): item['count'] for item in stage_counts_queryset if item['stage__name']}
-        
+
+        # Single query: total, active, and qualified counts via conditional aggregation
+        aggregates = queryset.aggregate(
+            total_leads=Count('id'),
+            active_leads=Count('id', filter=~Q(stage__name__in=['lost', 'qualified'])),
+            qualified_leads=Count('id', filter=Q(stage__name='qualified')),
+        )
+
+        # Separate query for follow-ups (different table) — direct join, no subquery
+        follow_ups_today = (
+            LeadNote.objects
+            .filter(next_follow_up__date=today, lead__in=queryset.values('id'))
+            .values('lead_id')
+            .distinct()
+            .count()
+        )
+
+        stage_counts = {
+            item['stage__name'].lower(): item['count']
+            for item in queryset.values('stage__name').annotate(count=Count('id'))
+            if item['stage__name']
+        }
+
         return Response({
-            'total_leads': total_leads,
-            'active_leads': active_leads,
-            'qualified_leads': qualified_leads,
+            **aggregates,
             'follow_ups_today': follow_ups_today,
-            'stage_counts': stage_counts
+            'stage_counts': stage_counts,
         })
 
     @extend_schema(
@@ -188,16 +202,24 @@ class LeadViewSet(viewsets.ModelViewSet):
     def today_follow_ups(self, request):
         """Get today's follow-ups for the user."""
         from leads.serializers.lead_note import FollowUpSerializer
-        
-        queryset = self.filter_queryset(self.get_queryset())
+
+        user = request.user
         today = timezone.localtime().date()
-        
-        notes = LeadNote.objects.filter(
-            lead__in=queryset,
+
+        # Build note filter directly — avoids passing a full queryset as a correlated subquery
+        notes_qs = LeadNote.objects.select_related('lead').filter(
             next_follow_up__date=today
-        ).select_related('lead').order_by('next_follow_up')
-        
-        serializer = FollowUpSerializer(notes, many=True)
+        )
+        if getattr(user, 'role', '') == 'agent':
+            # Direct join on assigned_to — fastest path for agents
+            notes_qs = notes_qs.filter(lead__assigned_to=user)
+        else:
+            # Admin/manager: optionally filter by assigned_to query param
+            assigned_to_id = request.query_params.get('assigned_to')
+            if assigned_to_id:
+                notes_qs = notes_qs.filter(lead__assigned_to__id=assigned_to_id)
+
+        serializer = FollowUpSerializer(notes_qs.order_by('next_follow_up'), many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'], url_path='transfer')

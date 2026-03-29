@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from rest_framework import serializers
 from leads.models import Lead, LeadStage
 from leads.serializers.lead_note import LeadNoteSerializer
@@ -42,10 +43,14 @@ class LeadListSerializer(serializers.ModelSerializer):
         fields = ['id', 'full_name', 'email', 'phone', 'job_title', 'stage', 'project', 'latest_note']
 
     def get_latest_note(self, obj):
-        note = obj.notes.order_by('-created_at').first()
-        if note:
-            return LeadNoteSerializer(note).data
-        return None
+        # Use prefetched_notes if available (set by LeadViewSet queryset)
+        # to avoid an extra DB query per lead (N+1)
+        prefetched = getattr(obj, 'prefetched_notes', None)
+        if prefetched is not None:
+            note = prefetched[0] if prefetched else None
+        else:
+            note = obj.notes.order_by('-created_at').first()
+        return LeadNoteSerializer(note).data if note else None
 
 
 class LeadDetailSerializer(serializers.ModelSerializer):
@@ -96,8 +101,13 @@ class LeadDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'pipeline_stages', 'notes', 'transfer_history', 'created_at', 'updated_at', 'created_time']
 
     def get_pipeline_stages(self, obj):
-        stages = LeadStage.objects.order_by('order', 'name')
-        return StageSerializer(stages, many=True).data
+        # Cache stages for 5 minutes — they almost never change
+        cached = cache.get('pipeline_stages')
+        if cached is None:
+            stages = LeadStage.objects.order_by('order', 'name')
+            cached = StageSerializer(stages, many=True).data
+            cache.set('pipeline_stages', cached, timeout=300)
+        return cached
 
     def get_notes(self, obj):
         notes = obj.notes.order_by('-created_at')
@@ -164,10 +174,14 @@ class LeadSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_time']
 
     def get_latest_note(self, obj):
-        note = obj.notes.order_by('-created_at').first()
-        if note:
-            return LeadNoteSerializer(note).data
-        return None
+        # Use prefetched_notes if available (set by LeadViewSet queryset)
+        # to avoid an extra DB query per lead (N+1)
+        prefetched = getattr(obj, 'prefetched_notes', None)
+        if prefetched is not None:
+            note = prefetched[0] if prefetched else None
+        else:
+            note = obj.notes.order_by('-created_at').first()
+        return LeadNoteSerializer(note).data if note else None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
