@@ -7,15 +7,17 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-0#r^1yas045z^_j0e)o*x
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'prime-crm-production-88.up.railway.app,localhost').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'prime-crm-production-88.up.railway.app,localhost,13.60.50.218').split(',')
 
 CSRF_TRUSTED_ORIGINS = [
     'https://prime-crm-production-88.up.railway.app',
-    'https://prime-crm-fe.vercel.app'
+    'https://prime-crm-fe.vercel.app',
+    'http://13.60.50.218:8000'
 ]
 
 CORS_ALLOWED_ORIGINS = [
     'https://prime-crm-production-88.up.railway.app',
-    'https://prime-crm-fe.vercel.app'
+    'https://prime-crm-fe.vercel.app',
+    'http://13.60.50.218:8000'
 ]
 CORS_ALLOW_CREDENTIALS = True
