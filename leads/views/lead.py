@@ -108,7 +108,7 @@ class LeadViewSet(viewsets.ModelViewSet):
 
         stage_counts = {
             item['stage__name'].lower(): item['count']
-            for item in queryset.values('stage__name').annotate(count=Count('id'))
+            for item in queryset.order_by().values('stage__name').annotate(count=Count('id'))
             if item['stage__name']
         }
 
