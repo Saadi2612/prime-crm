@@ -85,6 +85,7 @@ DATABASES = {
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'prime_crm_pass'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'CONN_MAX_AGE': 0,  # Must be 0 with Supabase PgBouncer Session mode — persistent connections exhaust pool_size
     }
 }
 
