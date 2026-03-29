@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 import requests
 from django.utils.dateparse import parse_datetime
-from leads.models import Lead
+from leads.models import Lead, LeadStage
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +149,13 @@ class MetaWebhookView(APIView):
                                     "custom_data": custom_data
                                 }
                             )
+                            
+                            if created:
+                                new_stage = LeadStage.objects.filter(name__iexact='new').first()
+                                if new_stage:
+                                    lead.stage = new_stage
+                                    lead.save(update_fields=['stage'])
+                                    
                             print(f"\n\n\nLead saved: {lead.id} (Created: {created})", flush=True)
                         except Exception as e:
                             print(f"\n\n\nError saving lead: {e}", flush=True)
