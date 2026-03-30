@@ -8,12 +8,14 @@ from rest_framework.views import APIView
 from authentication.models import User
 from authentication.serializers.auth import UserProfileSerializer, UserUpdateSerializer
 
+from leads.models import LeadStage
+
 def _annotate_lead_stats(queryset):
     return queryset.annotate(
         total_leads_count=Count('assigned_leads', distinct=True),
-        won_leads_count=Count('assigned_leads', filter=Q(assigned_leads__stage__name='Qualified'), distinct=True),
-        lost_leads_count=Count('assigned_leads', filter=Q(assigned_leads__stage__name='Lost'), distinct=True),
-        active_leads_count=Count('assigned_leads', filter=~Q(assigned_leads__stage__name__in=['New', 'Qualified', 'Lost']), distinct=True),
+        qualified_leads_count=Count('assigned_leads', filter=Q(assigned_leads__stage__stage_type=LeadStage.StageType.QUALIFIED), distinct=True),
+        unqualified_leads_count=Count('assigned_leads', filter=Q(assigned_leads__stage__stage_type=LeadStage.StageType.UNQUALIFIED), distinct=True),
+        active_leads_count=Count('assigned_leads', filter=Q(assigned_leads__stage__stage_type=LeadStage.StageType.DEFAULT), distinct=True),
     )
 
 
