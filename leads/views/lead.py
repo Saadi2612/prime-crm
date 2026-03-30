@@ -286,9 +286,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        stage = LeadStage.objects.filter(name__iexact='new').first()
-        if not stage:
-            stage, _ = LeadStage.objects.get_or_create(name='new', defaults={'order': 0})
+        stage = LeadStage.objects.order_by('order').first()
         serializer.save(assigned_to=self.request.user, stage=stage)
 
     def retrieve(self, request, *args, **kwargs):

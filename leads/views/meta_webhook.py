@@ -151,10 +151,11 @@ class MetaWebhookView(APIView):
                             )
                             
                             if created:
-                                new_stage = LeadStage.objects.filter(name__iexact='new').first()
-                                if new_stage:
-                                    lead.stage = new_stage
+                                first_stage = LeadStage.objects.order_by('order').first()
+                                if first_stage:
+                                    lead.stage = first_stage
                                     lead.save(update_fields=['stage'])
+                                    print(f"\n\n\nLead stage set to '{first_stage.name}'", flush=True)
                                     
                             print(f"\n\n\nLead saved: {lead.id} (Created: {created})", flush=True)
                         except Exception as e:

@@ -94,11 +94,12 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             'project',
             'form_id',
             'assigned_to',
+            'custom_data',
             'created_time',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'pipeline_stages', 'notes', 'transfer_history', 'created_at', 'updated_at', 'created_time']
+        read_only_fields = ['id', 'pipeline_stages', 'notes', 'transfer_history', 'created_at', 'updated_at', 'created_time', 'custom_data']
 
     def get_pipeline_stages(self, obj):
         # Cache stages for 5 minutes — they almost never change
