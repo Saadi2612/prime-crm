@@ -93,8 +93,9 @@ class LeadViewSet(viewsets.ModelViewSet):
         # Single query: total, active, and qualified counts via conditional aggregation
         aggregates = queryset.aggregate(
             total_leads=Count('id'),
-            active_leads=Count('id', filter=~Q(stage__name__in=['lost', 'qualified'])),
-            qualified_leads=Count('id', filter=Q(stage__name='qualified')),
+            active_leads=Count('id', filter=Q(stage__stage_type=LeadStage.StageType.DEFAULT)),
+            qualified_leads=Count('id', filter=Q(stage__stage_type=LeadStage.StageType.QUALIFIED)),
+            unqualified_leads=Count('id', filter=Q(stage__stage_type=LeadStage.StageType.UNQUALIFIED)),
         )
 
         # Separate query for follow-ups (different table) — direct join, no subquery

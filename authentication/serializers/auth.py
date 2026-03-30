@@ -65,11 +65,31 @@ class UserProfileSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_lead_stats(self, obj):
+        # Return pre-annotated values if available (e.g. from UserListView)
+        if hasattr(obj, 'total_leads_count'):
+            return {
+                'total': getattr(obj, 'total_leads_count', 0),
+                'active': getattr(obj, 'active_leads_count', 0),
+                'qualified': getattr(obj, 'qualified_leads_count', 0),
+                'unqualified': getattr(obj, 'unqualified_leads_count', 0),
+            }
+        
+        # Otherwise, compute lazily dynamically
+        from leads.models import Lead, LeadStage
+        from django.db.models import Count, Q
+
+        aggregates = Lead.objects.filter(assigned_to=obj).aggregate(
+            total=Count('id'),
+            qualified=Count('id', filter=Q(stage__stage_type=LeadStage.StageType.QUALIFIED)),
+            unqualified=Count('id', filter=Q(stage__stage_type=LeadStage.StageType.UNQUALIFIED)),
+            active=Count('id', filter=Q(stage__stage_type=LeadStage.StageType.DEFAULT)),
+        )
+
         return {
-            'total': getattr(obj, 'total_leads_count', 0),
-            'active': getattr(obj, 'active_leads_count', 0),
-            'won': getattr(obj, 'won_leads_count', 0),
-            'lost': getattr(obj, 'lost_leads_count', 0),
+            'total': aggregates['total'] or 0,
+            'active': aggregates['active'] or 0,
+            'qualified': aggregates['qualified'] or 0,
+            'unqualified': aggregates['unqualified'] or 0,
         }
 
 
