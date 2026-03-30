@@ -8,6 +8,7 @@ class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_email(self, value):
+        value = value.lower()
         try:
             user = User.objects.get(email=value, is_active=True)
         except User.DoesNotExist:
@@ -20,6 +21,9 @@ class ForgotPasswordSerializer(serializers.Serializer):
 class VerifyOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp_code = serializers.CharField(max_length=6)
+
+    def validate_email(self, value):
+        return value.lower()
 
     def validate(self, attrs):
         email = attrs.get('email')
@@ -52,6 +56,9 @@ class ResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp_code = serializers.CharField(max_length=6)
     new_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+
+    def validate_email(self, value):
+        return value.lower()
     confirm_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
 
     def validate(self, attrs):

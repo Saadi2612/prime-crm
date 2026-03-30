@@ -48,7 +48,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if self.action in ['list', 'stats', 'chart', 'recent', 'unassigned_leads'] and user.is_authenticated:
-            if user.role == 'agent':
+            if user.role == User.Role.AGENT:
                 return queryset.filter(assigned_to=user)
             # Admin/manager can filter by assigned_to query param
             assigned_to_id = self.request.query_params.get('assigned_to')
@@ -63,7 +63,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         obj = super().get_object()
         user = self.request.user
         if user.is_authenticated:
-            if getattr(user, 'role', '') == 'agent':
+            if getattr(user, 'role', '') == User.Role.AGENT:
                 if self.action == 'destroy':
                     raise PermissionDenied("Agents are not allowed to delete leads.")
                 if obj.assigned_to != user:
@@ -187,7 +187,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         Only accessible by admin and manager roles.
         """
         user = request.user
-        if getattr(user, 'role', '') not in ('admin', 'manager'):
+        if getattr(user, 'role', '') not in (User.Role.ADMIN, User.Role.MANAGER):
             raise PermissionDenied("Only admins and managers can view unassigned leads.")
 
         queryset = self.filter_queryset(
@@ -210,7 +210,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         notes_qs = LeadNote.objects.select_related('lead').filter(
             next_follow_up__date=today
         )
-        if getattr(user, 'role', '') == 'agent':
+        if getattr(user, 'role', '') == User.Role.AGENT:
             # Direct join on assigned_to — fastest path for agents
             notes_qs = notes_qs.filter(lead__assigned_to=user)
         else:
@@ -232,7 +232,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         Only admin and manager roles are allowed.
         """
         user = request.user
-        if getattr(user, 'role', '') not in ('admin', 'manager'):
+        if getattr(user, 'role', '') not in (User.Role.ADMIN, User.Role.MANAGER):
             raise PermissionDenied("Only admins and managers can transfer leads.")
 
         lead = self.get_object()

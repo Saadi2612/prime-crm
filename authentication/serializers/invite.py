@@ -14,13 +14,13 @@ class InviteUserSerializer(serializers.ModelSerializer):
     def validate_role(self, value):
         requester = self.context['request'].user
 
-        if requester.role == 'admin':
-            if value not in ('manager', 'agent'):
+        if requester.role == User.Role.ADMIN:
+            if value not in (User.Role.MANAGER, User.Role.AGENT):
                 raise serializers.ValidationError(
                     'Admin can only invite Managers or Agents.'
                 )
-        elif requester.role == 'manager':
-            if value != 'agent':
+        elif requester.role == User.Role.MANAGER:
+            if value != User.Role.AGENT:
                 raise serializers.ValidationError(
                     'Managers can only invite Agents.'
                 )
@@ -31,6 +31,7 @@ class InviteUserSerializer(serializers.ModelSerializer):
         return value
 
     def validate_email(self, value):
+        value = value.lower()
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError(
                 'A user with this email already exists.'

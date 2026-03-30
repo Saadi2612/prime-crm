@@ -128,7 +128,7 @@ class MetaWebhookView(APIView):
                             elif name == "phone":
                                 phone = val
                             elif name == "email":
-                                email = val
+                                email = val.lower() if val else ""
                             elif name == "job_title":
                                 job_title = val
                             else:

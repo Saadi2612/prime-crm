@@ -9,6 +9,9 @@ class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, style={'input_type': 'password'})
 
+    def validate_email(self, value):
+        return value.lower()
+
     def validate(self, attrs):
         email = attrs.get('email')
         password = attrs.get('password')

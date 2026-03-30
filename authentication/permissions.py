@@ -1,4 +1,5 @@
 from rest_framework.permissions import BasePermission
+from authentication.models import User
 
 
 class IsAdmin(BasePermission):
@@ -9,7 +10,7 @@ class IsAdmin(BasePermission):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.role == 'admin'
+            and request.user.role == User.Role.ADMIN
         )
 
 
@@ -21,7 +22,7 @@ class IsManager(BasePermission):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.role == 'manager'
+            and request.user.role == User.Role.MANAGER
         )
 
 
@@ -33,5 +34,5 @@ class IsAdminOrManager(BasePermission):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.role in ('admin', 'manager')
+            and request.user.role in (User.Role.ADMIN, User.Role.MANAGER)
         )
