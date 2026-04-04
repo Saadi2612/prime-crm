@@ -48,10 +48,10 @@ class LeadViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if self.action in ['list', 'stats', 'chart', 'recent', 'unassigned_leads'] and user.is_authenticated:
-            if user.role == User.Role.AGENT:
+            if user.role in [User.Role.AGENT, User.Role.MANAGER]:
                 return queryset.filter(assigned_to=user)
             # Admin/manager can filter by assigned_to query param
-            assigned_to_id = self.request.query_params.get('assigned_to')
+            assigned_to_id = self.request.query_params.get('assigned_to', None)
             if assigned_to_id:
                 queryset = queryset.filter(assigned_to__id=assigned_to_id)
             # Admin/manager can filter for unassigned leads
@@ -87,8 +87,12 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
+        from datetime import datetime, time
         queryset = self.filter_queryset(self.get_queryset())
-        today = timezone.localtime().date()
+        now = timezone.localtime()
+        today = now.date()
+        today_start = timezone.make_aware(datetime.combine(today, time.min))
+        tomorrow_start = today_start + timedelta(days=1)
 
         # Single query: total, active, and qualified counts via conditional aggregation
         aggregates = queryset.aggregate(
@@ -98,14 +102,11 @@ class LeadViewSet(viewsets.ModelViewSet):
             unqualified_leads=Count('id', filter=Q(stage__stage_type=LeadStage.StageType.UNQUALIFIED)),
         )
 
-        # Separate query for follow-ups (different table) — direct join, no subquery
-        follow_ups_today = (
-            LeadNote.objects
-            .filter(next_follow_up__date=today, lead__in=queryset.values('id'))
-            .values('lead_id')
-            .distinct()
-            .count()
-        )
+        follow_ups_today = LeadNote.objects.filter(
+            next_follow_up__gte=today_start,
+            next_follow_up__lt=tomorrow_start,
+            lead__in=queryset.values('id')
+        ).count()
 
         stage_counts = {
             item['stage__name'].lower(): item['count']
@@ -144,8 +145,6 @@ class LeadViewSet(viewsets.ModelViewSet):
             
         today = timezone.localtime().date()
         threshold_date = today - timedelta(days=days - 1)
-
-        print("threshold -> ", threshold_date, flush=True)
         
         # Filter leads created from threshold date to today
         # Note: created_time might be a datetime, so we filter by date
@@ -188,8 +187,8 @@ class LeadViewSet(viewsets.ModelViewSet):
         Only accessible by admin and manager roles.
         """
         user = request.user
-        if getattr(user, 'role', '') not in (User.Role.ADMIN, User.Role.MANAGER):
-            raise PermissionDenied("Only admins and managers can view unassigned leads.")
+        if getattr(user, 'role', '') != User.Role.ADMIN:
+            raise PermissionDenied("Only admins can view unassigned leads.")
 
         queryset = self.filter_queryset(
             Lead.objects.select_related('project', 'stage', 'assigned_to')
@@ -204,12 +203,17 @@ class LeadViewSet(viewsets.ModelViewSet):
         """Get today's follow-ups for the user."""
         from leads.serializers.lead_note import FollowUpSerializer
 
+        from datetime import datetime, time
         user = request.user
-        today = timezone.localtime().date()
+        now = timezone.localtime()
+        today = now.date()
+        today_start = timezone.make_aware(datetime.combine(today, time.min))
+        tomorrow_start = today_start + timedelta(days=1)
 
         # Build note filter directly — avoids passing a full queryset as a correlated subquery
         notes_qs = LeadNote.objects.select_related('lead').filter(
-            next_follow_up__date=today
+            next_follow_up__gte=today_start,
+            next_follow_up__lt=tomorrow_start
         )
         if getattr(user, 'role', '') == User.Role.AGENT:
             # Direct join on assigned_to — fastest path for agents
@@ -222,6 +226,72 @@ class LeadViewSet(viewsets.ModelViewSet):
 
         serializer = FollowUpSerializer(notes_qs.order_by('next_follow_up'), many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='follow-ups')
+    def follow_ups(self, request):
+        """Get follow-ups based on user role."""
+        from leads.serializers.lead_note import FollowUpSerializer
+
+        from datetime import datetime, time
+        user = request.user
+        now = timezone.localtime()
+        today = now.date()
+        today_start = timezone.make_aware(datetime.combine(today, time.min))
+        tomorrow_start = today_start + timedelta(days=1)
+
+        # Get all follow ups that haven't been completed / have a date set
+        notes_qs = LeadNote.objects.select_related('lead', 'lead__assigned_to').filter(
+            next_follow_up__isnull=False
+        ).order_by('next_follow_up')
+
+        role = getattr(user, 'role', '')
+
+        if role in (User.Role.AGENT, User.Role.MANAGER):
+            # Agent and Manager just see their own ungrouped list of upcoming today
+            notes_qs = notes_qs.filter(
+                lead__assigned_to=user,
+                next_follow_up__gte=now,
+                next_follow_up__lt=tomorrow_start
+            )
+            serializer = FollowUpSerializer(notes_qs, many=True)
+            return Response(serializer.data)
+        elif role == User.Role.ADMIN:
+            # Group by user, only upcoming (no past follow ups)
+            notes_qs = notes_qs.filter(
+                next_follow_up__gte=now
+            )
+            grouped = {}
+            for note in notes_qs:
+                assigned_to = note.lead.assigned_to
+                
+                if assigned_to:
+                    user_id = str(assigned_to.id)
+                    user_info = {
+                        "id": user_id,
+                        "full_name": assigned_to.full_name,
+                        "email": assigned_to.email,
+                        "role": assigned_to.role
+                    }
+                else:
+                    user_id = "unassigned"
+                    user_info = {
+                        "id": "unassigned",
+                        "full_name": "Unassigned",
+                        "email": "",
+                        "role": ""
+                    }
+
+                if user_id not in grouped:
+                    grouped[user_id] = {
+                        "user": user_info,
+                        "follow_ups": []
+                    }
+                grouped[user_id]["follow_ups"].append(FollowUpSerializer(note).data)
+
+            # Convert to list
+            return Response(list(grouped.values()))
+        else:
+            return Response([])
 
     @action(detail=True, methods=['post'], url_path='transfer')
     def transfer(self, request, pk=None):

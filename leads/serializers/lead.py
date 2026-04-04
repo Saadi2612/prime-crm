@@ -179,8 +179,10 @@ class LeadSerializer(serializers.ModelSerializer):
         # to avoid an extra DB query per lead (N+1)
         prefetched = getattr(obj, 'prefetched_notes', None)
         if prefetched is not None:
+            print("\n\nprefetched notes", flush=True)
             note = prefetched[0] if prefetched else None
         else:
+            print("\n\nNo prefetched notes", flush=True)
             note = obj.notes.order_by('-created_at').first()
         return LeadNoteSerializer(note).data if note else None
 
